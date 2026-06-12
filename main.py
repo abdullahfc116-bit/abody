@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
 # --- إعدادات ---
-TOKEN = "8881752903:AAEHkVk3oRfsgm71f0fRpYIAbi55iXzZUG4"
+TOKEN = "8881752903:AAGdQXWFkzhIWs-2vPhGp16_YULBA9lWNo4"
 docker_client = docker.from_env()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
