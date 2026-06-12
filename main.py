@@ -3,6 +3,7 @@ import sqlite3
 import docker
 import random
 import string
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -10,14 +11,17 @@ from aiogram.fsm.state import StatesGroup, State
 
 # --- إعدادات ---
 TOKEN = "8881752903:AAGdQXWFkzhIWs-2vPhGp16_YULBA9lWNo4"
-docker_client = docker.from_env()
+# الاتصال بالدوكر يتم مرة واحدة فقط في الأعلى
+DOCKER_URL = "tcp://197.252.29.81:2375" 
+docker_client = docker.DockerClient(base_url=DOCKER_URL)
+
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- إدارة قاعدة البيانات (بأسلوب آمن) ---
+# --- إدارة قاعدة البيانات ---
 def get_db_connection():
     conn = sqlite3.connect('hosting.db')
-    conn.row_factory = sqlite3.Row  # لتسهيل الوصول للبيانات
+    conn.row_factory = sqlite3.Row
     return conn
 
 def init_db():
@@ -26,18 +30,15 @@ def init_db():
                       (id INTEGER PRIMARY KEY, user_id INTEGER, name TEXT UNIQUE, 
                        type TEXT, container_id TEXT, status TEXT)''')
 
-# --- التوليد التلقائي للأسماء ---
 def generate_name():
     return "proj-" + ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
 
-# --- حالات البوت ---
 class ProjectStates(StatesGroup):
     waiting_for_name = State()
 
 # --- أوامر البوت ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    # استخدام ReplyKeyboardMarkup مع طلب حذفها بعد الاختيار (اختياري)
     markup = types.ReplyKeyboardMarkup(
         keyboard=[
             [types.KeyboardButton(text="🚀 استضافة بكود"), types.KeyboardButton(text="📁 استضافة موقع")],
@@ -56,34 +57,30 @@ async def host_web(message: types.Message, state: FSMContext):
 async def process_name(message: types.Message, state: FSMContext):
     name = message.text if message.text.lower() != 'تلقائي' else generate_name()
     
-    # 1. تحقق أمني بسيط: منع تكرار الأسماء في دوكر
     try:
-        # 2. تشغيل الحاوية مع تحديد موارد (مهم جداً للحفاظ على السيرفر)
-        container = # بدلاً من docker.from_env()، استخدم الاتصال عبر IP السيرفر
-docker_client = docker.DockerClient(base_url='tcp://IP_ADDRESS_OF_YOUR_SERVER:2375')
+        # تشغيل الحاوية باستخدام الاتصال الخارجي الذي عرفناه في الأعلى
+        container = docker_client.containers.run(
             "nginx:alpine", 
             detach=True, 
             name=name,
-            mem_limit="128m", # تحديد الذاكرة لـ 128 ميجا
-            restart_policy={"Name": "always"} # التشغيل التلقائي عند ريستارت السيرفر
+            mem_limit="128m",
+            restart_policy={"Name": "always"}
         )
         
-        # 3. حفظ آمن في قاعدة البيانات
         with get_db_connection() as conn:
             conn.execute("INSERT INTO projects (user_id, name, type, container_id, status) VALUES (?, ?, ?, ?, ?)",
                          (message.from_user.id, name, 'web', container.id, 'running'))
             
         await message.answer(f"✅ تم إنشاء مشروعك بنجاح!\n🔗 الرابط: http://{name}.yourdomain.com")
         
-    except docker.errors.APIError as e:
-        await message.answer(f"❌ خطأ في النظام: قد يكون الاسم مستخدماً بالفعل. حاول مجدداً.")
     except Exception as e:
-        await message.answer(f"⚠️ حدث خطأ غير متوقع: {str(e)}")
+        await message.answer(f"⚠️ حدث خطأ: {str(e)}")
     
     await state.clear()
 
 async def main():
     init_db()
+    print("البوت يعمل الآن...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
