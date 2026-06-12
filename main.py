@@ -59,7 +59,8 @@ async def process_name(message: types.Message, state: FSMContext):
     # 1. تحقق أمني بسيط: منع تكرار الأسماء في دوكر
     try:
         # 2. تشغيل الحاوية مع تحديد موارد (مهم جداً للحفاظ على السيرفر)
-        container = docker_client.containers.run(
+        container = # بدلاً من docker.from_env()، استخدم الاتصال عبر IP السيرفر
+docker_client = docker.DockerClient(base_url='tcp://IP_ADDRESS_OF_YOUR_SERVER:2375')
             "nginx:alpine", 
             detach=True, 
             name=name,
